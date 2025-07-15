@@ -15,6 +15,17 @@ export default function GamePage() {
     initializeGame();
   }, [initializeGame]);
 
+  // Auto-select the first growing tip when game initializes or tips change
+  const { plantNodes, growingTips } = useGameStore();
+  useEffect(() => {
+    if (growingTips.length > 0) {
+      const firstGrowingTip = plantNodes.find(node => node.id === growingTips[0]);
+      if (firstGrowingTip) {
+        setSelectedNode(firstGrowingTip);
+      }
+    }
+  }, [growingTips, plantNodes]);
+
   const handleNodeSelect = (node: PlantNode) => {
     setSelectedNode(node);
   };
