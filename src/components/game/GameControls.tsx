@@ -15,14 +15,17 @@ export const GameControls: React.FC = () => {
     initializeGame 
   } = useGameStore();
 
-  const [selectedPower, setSelectedPower] = useState<keyof typeof powers>('resilience');
+  // Calculate available points (1 per turn, starting from turn 1)
+  const totalPointsEarned = Math.max(0, turn - 1);
+  const totalPointsSpent = powers.growth + powers.branchiness + powers.resilience;
+  const pointsAvailable = totalPointsEarned - totalPointsSpent;
 
   const handleGrowTendril = () => {
     growTendril();
   };
 
-  const handleAllocatePower = () => {
-    allocatePower(selectedPower);
+    const handleAllocatePower = (powerName: keyof typeof powers) => {
+    allocatePower(powerName);
   };
 
   const handleInitializeGame = () => {
@@ -70,27 +73,35 @@ export const GameControls: React.FC = () => {
       <div className="space-y-4">
         <h3 className="font-semibold text-lg text-gray-800">Power Allocation</h3>
         
-        <div>
-          <label className="block text-sm font-medium mb-2 text-gray-800">
-            Select Power to Allocate Point:
-          </label>
-          <select
-            value={String(selectedPower)}
-            onChange={(e) => setSelectedPower(e.target.value as keyof typeof powers)}
-            className="w-full p-2 border border-gray-300 rounded text-gray-800"
-          >
-            <option value="growth">Growth: {powers.growth}</option>
-            <option value="branchiness">Branchiness: {powers.branchiness}</option>
-            <option value="resilience">Resilience: {powers.resilience}</option>
-          </select>
+        <div className="text-center text-sm text-gray-600 mb-4">
+          Points Available: {pointsAvailable}
         </div>
 
-                  <button
-            onClick={handleAllocatePower}
-            className="w-full bg-purple-500 text-white py-2 px-4 rounded hover:bg-purple-600 transition-colors"
+        <div className="space-y-2">
+          <button
+            onClick={() => handleAllocatePower('growth')}
+            disabled={pointsAvailable <= 0}
+            className="w-full bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            Allocate Point to {String(selectedPower)}
+            Upgrade Growth ({powers.growth})
           </button>
+          
+          <button
+            onClick={() => handleAllocatePower('branchiness')}
+            disabled={pointsAvailable <= 0}
+            className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            Upgrade Branchiness ({powers.branchiness})
+          </button>
+          
+          <button
+            onClick={() => handleAllocatePower('resilience')}
+            disabled={pointsAvailable <= 0}
+            className="w-full bg-purple-500 text-white py-2 px-4 rounded hover:bg-purple-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            Upgrade Resilience ({powers.resilience})
+          </button>
+        </div>
       </div>
 
       {/* Current Powers Display */}
