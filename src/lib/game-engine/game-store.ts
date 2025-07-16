@@ -1,21 +1,18 @@
 import { create } from 'zustand';
-import { GameState, GrowthAction, GamePowers, EnvironmentZone } from '@/types/game';
+import { GameState, GamePowers, EnvironmentZone } from '@/types/game';
 import { PlantGrowthEngine } from './plant-growth';
 
 interface GameStore extends GameState {
   // Actions
   initializeGame: () => void;
-  growPlant: (action: GrowthAction) => void;
-  allocatePowers: (powerAllocation: Partial<GamePowers>) => void;
-  createBranch: (parentNodeId: string, direction: number) => void;
-  nextTurn: () => void;
+  growTendril: () => void;
+  allocatePower: (powerName: keyof GamePowers) => void;
   resetGame: () => void;
 }
 
 const DEFAULT_POWERS: GamePowers = {
-  reach: 0,
-  branching: 0,
-  photosynthesis: 0,
+  growth: 0,
+  branchiness: 0,
   resilience: 0,
 };
 
@@ -53,57 +50,50 @@ export const useGameStore = create<GameStore>((set, get) => ({
   plantNodes: [],
   growingTips: [],
   turn: 0,
-  energy: 100,
+  energy: 0, // Not used in new model
   powers: DEFAULT_POWERS,
   environment: DEFAULT_ENVIRONMENT,
 
   // Actions
   initializeGame: () => {
-    const initialPlant = PlantGrowthEngine.createInitialPlant(0, 0);
+    const initialPlant = PlantGrowthEngine.createInitialPlant(0, 0, 1);
     set({
       plantNodes: [initialPlant],
       growingTips: [initialPlant.id],
       turn: 1,
-      energy: 100,
+      energy: 0,
       powers: DEFAULT_POWERS,
       environment: DEFAULT_ENVIRONMENT,
     });
   },
 
-  growPlant: (action: GrowthAction) => {
+  growTendril: () => {
     const currentState = get();
-    try {
-      const newState = PlantGrowthEngine.growPlant(currentState, action);
-      set(newState);
-    } catch (error) {
-      console.error('Failed to grow plant:', error);
-    }
-  },
-
-  allocatePowers: (powerAllocation: Partial<GamePowers>) => {
-    const currentState = get();
-    const newState = PlantGrowthEngine.allocatePowers(currentState, powerAllocation);
-    set(newState);
-  },
-
-  createBranch: (parentNodeId: string, direction: number) => {
-    const currentState = get();
-    try {
-      const newState = PlantGrowthEngine.createBranch(currentState, parentNodeId, direction);
-      set(newState);
-    } catch (error) {
-      console.error('Failed to create branch:', error);
-    }
-  },
-
-  nextTurn: () => {
-    const currentState = get();
-    const energyGain = 20 + currentState.powers.photosynthesis * 5;
+    const newTurn = currentState.turn + 1;
     
-    set({
-      turn: currentState.turn + 1,
-      energy: currentState.energy + energyGain,
-    });
+    try {
+      // Step 1: Grow all growing tips
+      let newState = PlantGrowthEngine.growPlant(currentState, newTurn);
+      
+      // Step 2: Thicken the plant
+      newState = PlantGrowthEngine.thickenPlant(newState, newTurn);
+      
+      // Step 3: Check for branching
+      newState = PlantGrowthEngine.checkBranching(newState, newTurn);
+      
+      // Step 4: Update turn
+      newState.turn = newTurn;
+      
+      set(newState);
+    } catch (error) {
+      console.error('Failed to grow tendril:', error);
+    }
+  },
+
+  allocatePower: (powerName: keyof GamePowers) => {
+    const currentState = get();
+    const newState = PlantGrowthEngine.allocatePower(currentState, powerName);
+    set(newState);
   },
 
   resetGame: () => {
@@ -111,7 +101,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       plantNodes: [],
       growingTips: [],
       turn: 0,
-      energy: 100,
+      energy: 0,
       powers: DEFAULT_POWERS,
       environment: DEFAULT_ENVIRONMENT,
     });

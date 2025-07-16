@@ -5,17 +5,16 @@ export interface PlantNode {
   parentId: string | null;
   children: string[]; // IDs of child nodes
   age: number;
-  energy: number;
-  health: number;
   isGrowingTip: boolean;
   thickness: number;
   color: string;
+  creationTurn: number; // Turn when this node was created
+  growthDirection: number; // Current growth direction in radians
 }
 
 export interface GamePowers {
-  reach: number;
-  branching: number;
-  photosynthesis: number;
+  growth: number;
+  branchiness: number;
   resilience: number;
 }
 

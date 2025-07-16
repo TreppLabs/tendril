@@ -1,34 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { PlantCanvas } from '@/components/game/PlantCanvas';
 import { GameControls } from '@/components/game/GameControls';
-import { PlantNode } from '@/types/game';
 import { useGameStore } from '@/lib/game-engine/game-store';
 
 export default function GamePage() {
-  const [selectedNode, setSelectedNode] = useState<PlantNode | undefined>();
   const { initializeGame } = useGameStore();
 
   // Initialize game on first load
   useEffect(() => {
     initializeGame();
   }, [initializeGame]);
-
-  // Auto-select the first growing tip when game initializes or tips change
-  const { plantNodes, growingTips } = useGameStore();
-  useEffect(() => {
-    if (growingTips.length > 0) {
-      const firstGrowingTip = plantNodes.find(node => node.id === growingTips[0]);
-      if (firstGrowingTip) {
-        setSelectedNode(firstGrowingTip);
-      }
-    }
-  }, [growingTips, plantNodes]);
-
-  const handleNodeSelect = (node: PlantNode) => {
-    setSelectedNode(node);
-  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -47,17 +30,13 @@ export default function GamePage() {
               <PlantCanvas
                 width={800}
                 height={600}
-                onNodeClick={handleNodeSelect}
               />
             </div>
           </div>
 
           {/* Game Controls */}
           <div className="lg:col-span-1">
-            <GameControls
-              selectedNode={selectedNode}
-              onNodeSelect={handleNodeSelect}
-            />
+            <GameControls />
           </div>
         </div>
 

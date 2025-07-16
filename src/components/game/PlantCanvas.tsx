@@ -7,13 +7,11 @@ import { PlantNode, EnvironmentZone } from '@/types/game';
 interface PlantCanvasProps {
   width: number;
   height: number;
-  onNodeClick?: (node: PlantNode) => void;
 }
 
 export const PlantCanvas: React.FC<PlantCanvasProps> = ({ 
   width, 
-  height, 
-  onNodeClick 
+  height
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { plantNodes, environment, growingTips } = useGameStore();
@@ -110,40 +108,16 @@ export const PlantCanvas: React.FC<PlantCanvasProps> = ({
         ctx.stroke();
       }
 
-      // Health indicator (color intensity)
-      const healthAlpha = node.health / 100;
-      ctx.fillStyle = `rgba(255, 0, 0, ${1 - healthAlpha})`;
+      // Age indicator (color intensity based on age)
+      const ageAlpha = Math.min(node.age / 10, 1); // Fade with age
+      ctx.fillStyle = `rgba(255, 0, 0, ${ageAlpha})`;
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, radius - 1, 0, 2 * Math.PI);
       ctx.fill();
     });
   }, [plantNodes, worldToCanvas]);
 
-  // Handle canvas click
-  const handleCanvasClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!onNodeClick) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const canvasX = event.clientX - rect.left;
-    const canvasY = event.clientY - rect.top;
-    const worldPos = canvasToWorld(canvasX, canvasY);
-
-    // Find closest node within click radius
-    const clickRadius = 10;
-    const closestNode = plantNodes.find(node => {
-      const distance = Math.sqrt(
-        Math.pow(node.x - worldPos.x, 2) + Math.pow(node.y - worldPos.y, 2)
-      );
-      return distance <= clickRadius;
-    });
-
-    if (closestNode) {
-      onNodeClick(closestNode);
-    }
-  }, [onNodeClick, plantNodes, canvasToWorld]);
 
   // Render canvas
   useEffect(() => {
@@ -172,8 +146,7 @@ export const PlantCanvas: React.FC<PlantCanvasProps> = ({
       ref={canvasRef}
       width={width}
       height={height}
-      onClick={handleCanvasClick}
-      className="border border-gray-300 rounded-lg cursor-pointer"
+      className="border border-gray-300 rounded-lg"
       style={{ touchAction: 'none' }}
     />
   );

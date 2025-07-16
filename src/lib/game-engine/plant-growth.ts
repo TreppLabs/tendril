@@ -1,11 +1,11 @@
-import { PlantNode, GameState, GrowthAction, GamePowers } from '@/types/game';
+import { PlantNode, GameState, GamePowers } from '@/types/game';
 
 export class PlantGrowthEngine {
   private static generateId(): string {
     return Math.random().toString(36).substr(2, 9);
   }
 
-  static createInitialPlant(x: number, y: number): PlantNode {
+  static createInitialPlant(x: number, y: number, turn: number): PlantNode {
     return {
       id: this.generateId(),
       x,
@@ -13,89 +13,95 @@ export class PlantGrowthEngine {
       parentId: null,
       children: [],
       age: 0,
-      energy: 100,
-      health: 100,
       isGrowingTip: true,
-      thickness: 3,
+      thickness: 2,
       color: '#4ade80',
+      creationTurn: turn,
+      growthDirection: Math.random() * 2 * Math.PI, // Random initial direction
     };
   }
 
   static growPlant(
     gameState: GameState,
-    action: GrowthAction
+    turn: number
   ): GameState {
-    const { plantNodes, growingTips } = gameState;
-    const tipNode = plantNodes.find(node => node.id === action.tipId);
-    
-    if (!tipNode || !tipNode.isGrowingTip) {
-      throw new Error('Invalid growing tip');
-    }
+    const { plantNodes, growingTips, powers } = gameState;
+    const updatedPlantNodes = [...plantNodes];
+    const updatedGrowingTips = [...growingTips];
+    const newNodes: PlantNode[] = [];
 
-    // Calculate new position
-    const newX = tipNode.x + Math.cos(action.direction) * action.distance;
-    const newY = tipNode.y + Math.sin(action.direction) * action.distance;
+    // Grow each growing tip
+    growingTips.forEach(tipId => {
+      const tipNode = updatedPlantNodes.find(node => node.id === tipId);
+      if (!tipNode || !tipNode.isGrowingTip) return;
 
-    // Check bounds
-    const { bounds } = gameState.environment;
-    if (newX < bounds.minX || newX > bounds.maxX || 
-        newY < bounds.minY || newY > bounds.maxY) {
-      throw new Error('Growth would exceed world bounds');
-    }
+      // Calculate growth distance based on growth power
+      const growthDistance = 2 + powers.growth; // Base 2 + growth power
 
-    // Create new node
-    const newNode: PlantNode = {
-      id: this.generateId(),
-      x: newX,
-      y: newY,
-      parentId: tipNode.id,
-      children: [],
-      age: 0,
-      energy: 50,
-      health: 100,
-      isGrowingTip: true,
-      thickness: Math.max(1, tipNode.thickness - 0.5),
-      color: tipNode.color,
-    };
+      // Calculate new direction (within 10 degrees of previous direction)
+      const angleVariation = (10 * Math.PI) / 180; // 10 degrees in radians
+      const newDirection = tipNode.growthDirection + (Math.random() - 0.5) * 2 * angleVariation;
+      
+      // Calculate new position
+      const newX = tipNode.x + Math.cos(newDirection) * growthDistance;
+      const newY = tipNode.y + Math.sin(newDirection) * growthDistance;
 
-    // Update parent node
-    const updatedTipNode: PlantNode = {
-      ...tipNode,
-      children: [...tipNode.children, newNode.id],
-      isGrowingTip: false,
-    };
+      // Check bounds
+      const { bounds } = gameState.environment;
+      if (newX < bounds.minX || newX > bounds.maxX || 
+          newY < bounds.minY || newY > bounds.maxY) {
+        return; // Skip growth if out of bounds
+      }
 
-    // Update plant nodes
-    const updatedPlantNodes = plantNodes.map(node => 
-      node.id === tipNode.id ? updatedTipNode : node
+      // Create new node
+      const newNode: PlantNode = {
+        id: this.generateId(),
+        x: newX,
+        y: newY,
+        parentId: tipNode.id,
+        children: [],
+        age: 0,
+        isGrowingTip: true,
+        thickness: Math.max(1, tipNode.thickness - 0.5),
+        color: tipNode.color,
+        creationTurn: turn,
+        growthDirection: newDirection,
+      };
+
+      // Update parent node
+      const updatedTipNode: PlantNode = {
+        ...tipNode,
+        children: [...tipNode.children, newNode.id],
+        isGrowingTip: false,
+      };
+
+      // Update the tip node in the array
+      const tipIndex = updatedPlantNodes.findIndex(node => node.id === tipId);
+      updatedPlantNodes[tipIndex] = updatedTipNode;
+      
+      newNodes.push(newNode);
+      updatedGrowingTips.push(newNode.id);
+    });
+
+    // Remove old growing tips and add new nodes
+    const finalGrowingTips = updatedGrowingTips.filter(id => 
+      !growingTips.includes(id) || newNodes.some(node => node.id === id)
     );
-    updatedPlantNodes.push(newNode);
-
-    // Update growing tips
-    const updatedGrowingTips = growingTips.filter(id => id !== tipNode.id);
-    updatedGrowingTips.push(newNode.id);
 
     return {
       ...gameState,
-      plantNodes: updatedPlantNodes,
-      growingTips: updatedGrowingTips,
+      plantNodes: [...updatedPlantNodes, ...newNodes],
+      growingTips: finalGrowingTips,
     };
   }
 
-  static allocatePowers(
+  static allocatePower(
     gameState: GameState,
-    powerAllocation: Partial<GamePowers>
+    powerName: keyof GamePowers
   ): GameState {
     const currentPowers = gameState.powers;
     const updatedPowers = { ...currentPowers };
-
-    // Apply power allocations
-    (Object.keys(powerAllocation) as Array<keyof GamePowers>).forEach((power) => {
-      const value = powerAllocation[power];
-      if (value !== undefined && power in updatedPowers) {
-        updatedPowers[power] += value;
-      }
-    });
+    updatedPowers[powerName] += 1;
 
     return {
       ...gameState,
@@ -103,69 +109,105 @@ export class PlantGrowthEngine {
     };
   }
 
-  static calculateMaxGrowthDistance(gameState: GameState): number {
-    return 10 + gameState.powers.reach * 2; // Base 10 + 2 per reach power
-  }
-
-  static canBranch(gameState: GameState): boolean {
-    return gameState.powers.branching > 0;
-  }
-
-  static createBranch(
+  static thickenPlant(
     gameState: GameState,
-    parentNodeId: string,
-    direction: number
+    turn: number
   ): GameState {
-    if (!this.canBranch(gameState)) {
-      throw new Error('Branching power not available');
-    }
+    const { plantNodes, powers } = gameState;
+    
+    // Calculate total length
+    const totalLength = plantNodes.reduce((sum, node) => {
+      if (node.parentId) {
+        const parent = plantNodes.find(p => p.id === node.parentId);
+        if (parent) {
+          const dx = node.x - parent.x;
+          const dy = node.y - parent.y;
+          return sum + Math.sqrt(dx * dx + dy * dy);
+        }
+      }
+      return sum;
+    }, 0);
 
-    const parentNode = gameState.plantNodes.find(node => node.id === parentNodeId);
-    if (!parentNode) {
-      throw new Error('Parent node not found');
-    }
+    // Calculate thickening factor based on resilience
+    const resilienceFactor = 0.1 + (powers.resilience * 0.05); // Base 0.1 + 0.05 per resilience
+    const totalThickening = totalLength * resilienceFactor;
 
-    // Create new growing tip from parent
-    const newTip: PlantNode = {
-      id: this.generateId(),
-      x: parentNode.x,
-      y: parentNode.y,
-      parentId: parentNode.id,
-      children: [],
-      age: 0,
-      energy: 30,
-      health: 100,
-      isGrowingTip: true,
-      thickness: Math.max(1, parentNode.thickness - 1),
-      color: parentNode.color,
-    };
+    // Distribute thickening among all nodes
+    const thickeningPerNode = totalThickening / Math.max(1, plantNodes.length);
 
-    // Update parent
-    const updatedParent: PlantNode = {
-      ...parentNode,
-      children: [...parentNode.children, newTip.id],
-    };
-
-    const updatedPlantNodes = gameState.plantNodes.map(node => 
-      node.id === parentNodeId ? updatedParent : node
-    );
-    updatedPlantNodes.push(newTip);
-
-    const updatedGrowingTips = [...gameState.growingTips, newTip.id];
+    const updatedPlantNodes = plantNodes.map(node => ({
+      ...node,
+      thickness: node.thickness + thickeningPerNode,
+    }));
 
     return {
       ...gameState,
       plantNodes: updatedPlantNodes,
+    };
+  }
+
+  static checkBranching(
+    gameState: GameState,
+    turn: number
+  ): GameState {
+    const { plantNodes, growingTips, powers } = gameState;
+    const newNodes: PlantNode[] = [];
+    const updatedGrowingTips = [...growingTips];
+
+    // Check each node for branching (only nodes created in last 5 turns)
+    plantNodes.forEach(node => {
+      if (turn - node.creationTurn <= 5 && node.children.length === 0) {
+        // Branching chance based on branchiness power
+        const branchChance = powers.branchiness * 0.1; // 10% per branchiness point
+        if (Math.random() < branchChance) {
+          // Create new branch
+          const branchDirection = Math.random() * 2 * Math.PI; // Random direction
+          const branchDistance = 2 + powers.growth;
+          
+          const newX = node.x + Math.cos(branchDirection) * branchDistance;
+          const newY = node.y + Math.sin(branchDirection) * branchDistance;
+
+          // Check bounds
+          const { bounds } = gameState.environment;
+          if (newX >= bounds.minX && newX <= bounds.maxX && 
+              newY >= bounds.minY && newY <= bounds.maxY) {
+            
+            const branchNode: PlantNode = {
+              id: this.generateId(),
+              x: newX,
+              y: newY,
+              parentId: node.id,
+              children: [],
+              age: 0,
+              isGrowingTip: true,
+              thickness: Math.max(1, node.thickness - 1),
+              color: node.color,
+              creationTurn: turn,
+              growthDirection: branchDirection,
+            };
+
+            // Update parent node
+            const updatedParentNode: PlantNode = {
+              ...node,
+              children: [...node.children, branchNode.id],
+            };
+
+            newNodes.push(branchNode);
+            updatedGrowingTips.push(branchNode.id);
+          }
+        }
+      }
+    });
+
+    return {
+      ...gameState,
+      plantNodes: [...plantNodes, ...newNodes],
       growingTips: updatedGrowingTips,
-      powers: {
-        ...gameState.powers,
-        branching: gameState.powers.branching - 1,
-      },
     };
   }
 
   static getPlantStats(gameState: GameState) {
-    const { plantNodes } = gameState;
+    const { plantNodes, growingTips, turn } = gameState;
     const totalNodes = plantNodes.length;
     const totalLength = plantNodes.reduce((sum, node) => {
       if (node.parentId) {
@@ -179,15 +221,11 @@ export class PlantGrowthEngine {
       return sum;
     }, 0);
 
-    const averageHealth = plantNodes.reduce((sum, node) => sum + node.health, 0) / totalNodes;
-    const averageEnergy = plantNodes.reduce((sum, node) => sum + node.energy, 0) / totalNodes;
-
     return {
       totalNodes,
       totalLength,
-      averageHealth,
-      averageEnergy,
-      growingTips: gameState.growingTips.length,
+      growingTips: growingTips.length,
+      turn,
     };
   }
 } 
