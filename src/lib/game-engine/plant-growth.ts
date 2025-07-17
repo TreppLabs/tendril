@@ -18,6 +18,8 @@ export class PlantGrowthEngine {
       color: '#4ade80',
       creationTurn: turn,
       growthDirection: Math.random() * 2 * Math.PI, // Random initial direction
+      curviness: (Math.random() - 0.5) * (Math.PI / 6), // Random curviness between -15° and +15°
+      curvinessRate: (Math.random() - 0.5) * (Math.PI / 90), // Random RCC between -1° and +1°
     };
   }
 
@@ -35,12 +37,30 @@ export class PlantGrowthEngine {
       const tipNode = updatedPlantNodes.find(node => node.id === tipId);
       if (!tipNode || !tipNode.isGrowingTip) return;
 
-      // Calculate growth distance based on growth power
-      const growthDistance = 2 + powers.growth; // Base 2 + growth power
+      // Calculate growth distance based on growth power (more conservative)
+      const growthDistance = 1.5 + (powers.growth * 0.5); // Base 1.5 + 0.5 per growth power
 
-      // Calculate new direction (within 10 degrees of previous direction)
-      const angleVariation = (10 * Math.PI) / 180; // 10 degrees in radians
-      const newDirection = tipNode.growthDirection + (Math.random() - 0.5) * 2 * angleVariation;
+      // Update curviness rate with larger random adjustment (0.3 degrees)
+      const rateAdjustment = (Math.random() - 0.5) * (Math.PI / 300); // ±0.3 degree
+      const newCurvinessRate = Math.max(
+        -Math.PI / 180, // -1 degree
+        Math.min(
+          Math.PI / 180, // +1 degree
+          tipNode.curvinessRate + rateAdjustment
+        )
+      );
+      
+      // Update curviness using the rate of change
+      const newCurviness = Math.max(
+        -Math.PI / 12, // -15 degrees
+        Math.min(
+          Math.PI / 12, // +15 degrees
+          tipNode.curviness + newCurvinessRate
+        )
+      );
+      
+      // Calculate new direction using curviness
+      const newDirection = tipNode.growthDirection + newCurviness;
       
       // Calculate new position
       const newX = tipNode.x + Math.cos(newDirection) * growthDistance;
@@ -62,10 +82,12 @@ export class PlantGrowthEngine {
         children: [],
         age: 0,
         isGrowingTip: true,
-        thickness: Math.max(1, tipNode.thickness - 0.5),
+        thickness: Math.max(0.8, tipNode.thickness - 0.3), // Smaller thickness reduction
         color: tipNode.color,
         creationTurn: turn,
         growthDirection: newDirection,
+        curviness: newCurviness, // Use updated curviness
+        curvinessRate: newCurvinessRate, // Use updated curviness rate
       };
 
       // Update parent node
@@ -128,8 +150,8 @@ export class PlantGrowthEngine {
       return sum;
     }, 0);
 
-    // Calculate thickening factor based on resilience
-    const resilienceFactor = 0.1 + (powers.resilience * 0.05); // Base 0.1 + 0.05 per resilience
+    // Calculate thickening factor based on resilience (more conservative)
+    const resilienceFactor = 0.02 + (powers.resilience * 0.01); // Much smaller thickening
     const totalThickening = totalLength * resilienceFactor;
 
     // Distribute thickening among all nodes
@@ -151,46 +173,60 @@ export class PlantGrowthEngine {
     turn: number
   ): GameState {
     const { plantNodes, growingTips, powers } = gameState;
+    const updatedPlantNodes = [...plantNodes];
     const newNodes: PlantNode[] = [];
     const updatedGrowingTips = [...growingTips];
 
-    // Check each node for branching (only nodes created in last 5 turns)
-    plantNodes.forEach(node => {
-      if (turn - node.creationTurn <= 5 && node.children.length === 0) {
-        // Branching chance based on branchiness power
-        const branchChance = powers.branchiness * 0.1; // 10% per branchiness point
-        if (Math.random() < branchChance) {
-          // Create new branch
-          const branchDirection = Math.random() * 2 * Math.PI; // Random direction
-          const branchDistance = 2 + powers.growth;
-          
-          const newX = node.x + Math.cos(branchDirection) * branchDistance;
-          const newY = node.y + Math.sin(branchDirection) * branchDistance;
+    // Check each node for branching - no overall limit on branches
+    
+    updatedPlantNodes.forEach((node, index) => {
+      // Allow branching from any node that's not a growing tip and is young enough
+      // Nodes can branch for up to 8 turns after creation
+      if (!node.isGrowingTip && turn - node.creationTurn <= 8) {
+        // Base branching chance + branchiness bonus (much more conservative)
+        const baseChance = 0; // 0% base chance - no branching without branchiness power
+        const branchChance = baseChance + (powers.branchiness * 0.04); // 4% per branchiness point
+        
+        console.log(`Checking node ${node.id} for branching: chance=${branchChance}, turn=${turn}, creationTurn=${node.creationTurn}`);
+        
+                  if (Math.random() < branchChance) {
+            // Create new branch at 30 degrees from parent direction
+            const parentDirection = node.growthDirection || 0;
+            const branchAngle = parentDirection + (Math.PI / 6); // 30 degrees
+          const branchDistance = 1.5 + (powers.growth * 0.5);
+        
+          const newX = node.x + Math.cos(branchAngle) * branchDistance;
+          const newY = node.y + Math.sin(branchAngle) * branchDistance;
 
           // Check bounds
           const { bounds } = gameState.environment;
           if (newX >= bounds.minX && newX <= bounds.maxX && 
               newY >= bounds.minY && newY <= bounds.maxY) {
             
-            const branchNode: PlantNode = {
-              id: this.generateId(),
-              x: newX,
-              y: newY,
-              parentId: node.id,
-              children: [],
-              age: 0,
-              isGrowingTip: true,
-              thickness: Math.max(1, node.thickness - 1),
-              color: node.color,
-              creationTurn: turn,
-              growthDirection: branchDirection,
-            };
+                          const branchNode: PlantNode = {
+                id: this.generateId(),
+                x: newX,
+                y: newY,
+                parentId: node.id,
+                children: [],
+                age: 0,
+                isGrowingTip: true,
+                thickness: Math.max(0.8, node.thickness - 0.5),
+                color: node.color,
+                creationTurn: turn,
+                growthDirection: branchAngle,
+                curviness: (Math.random() - 0.5) * (Math.PI / 6), // New random curviness for branches
+                curvinessRate: (Math.random() - 0.5) * (Math.PI / 90), // New random RCC for branches
+              };
 
             // Update parent node
             const updatedParentNode: PlantNode = {
               ...node,
               children: [...node.children, branchNode.id],
             };
+
+            // Update the parent node in the array
+            updatedPlantNodes[index] = updatedParentNode;
 
             newNodes.push(branchNode);
             updatedGrowingTips.push(branchNode.id);
@@ -201,7 +237,7 @@ export class PlantGrowthEngine {
 
     return {
       ...gameState,
-      plantNodes: [...plantNodes, ...newNodes],
+      plantNodes: [...updatedPlantNodes, ...newNodes],
       growingTips: updatedGrowingTips,
     };
   }

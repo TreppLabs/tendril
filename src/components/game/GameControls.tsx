@@ -15,8 +15,8 @@ export const GameControls: React.FC = () => {
     initializeGame 
   } = useGameStore();
 
-  // Calculate available points (1 per turn, starting from turn 1)
-  const totalPointsEarned = Math.max(0, turn - 1);
+  // Calculate available points (2 initial + 1 every 10 turns)
+  const totalPointsEarned = 2 + Math.floor((turn - 1) / 10);
   const totalPointsSpent = powers.growth + powers.branchiness + powers.resilience;
   const pointsAvailable = totalPointsEarned - totalPointsSpent;
 

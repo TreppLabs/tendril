@@ -6,12 +6,28 @@ import { GameControls } from '@/components/game/GameControls';
 import { useGameStore } from '@/lib/game-engine/game-store';
 
 export default function GamePage() {
-  const { initializeGame } = useGameStore();
+  const { initializeGame, growTendril } = useGameStore();
 
   // Initialize game on first load
   useEffect(() => {
     initializeGame();
   }, [initializeGame]);
+
+  // Handle keyboard events
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        event.preventDefault(); // Prevent page scrolling
+        growTendril();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [growTendril]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -48,11 +64,9 @@ export default function GamePage() {
               <h3 className="font-semibold mb-2">Basic Controls:</h3>
               <ul className="space-y-1">
                 <li>• Click "New Game" to start</li>
-                <li>• Select a growing tip from the list</li>
-                <li>• Choose growth direction and distance</li>
                 <li>• Allocate points to powers</li>
-                <li>• Click "Grow Plant" to extend</li>
-                <li>• Click "Next Turn" to continue</li>
+                <li>• Click "Grow Tendril" or press <strong>Space</strong> to grow</li>
+                <li>• Watch your plant grow automatically!</li>
               </ul>
             </div>
             <div>

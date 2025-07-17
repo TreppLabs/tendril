@@ -10,6 +10,8 @@ export interface PlantNode {
   color: string;
   creationTurn: number; // Turn when this node was created
   growthDirection: number; // Current growth direction in radians
+  curviness: number; // Current curve direction in radians (-15° to +15°)
+  curvinessRate: number; // Rate of change of curviness in radians per turn (-1° to +1°)
 }
 
 export interface GamePowers {
