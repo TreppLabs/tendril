@@ -90,8 +90,8 @@ export const PlantCanvas: React.FC<PlantCanvasProps> = ({
     plantNodes.forEach(node => {
       const pos = worldToCanvas(node.x, node.y);
       
-      // Calculate radius based on thickness
-      const radius = node.thickness;
+      // Calculate radius based on thickness (smaller circles)
+      const radius = Math.max(1, node.thickness * 0.6);
 
       // Node background - darker green for connections
       ctx.fillStyle = node.isGrowingTip ? node.color : '#166534'; // Darker green for non-growing tips
